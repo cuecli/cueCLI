@@ -79,9 +79,9 @@ export async function listCommand(options) {
 
     // Interactive selection mode
     if (isInteractive) {
-      console.log(chalk.green('Select [1-' + promptEntries.length + '] or press ESC/q to exit'));
+      console.log(chalk.green('Select [1-' + promptEntries.length + '] and press Enter (or ESC/q to exit): '));
       
-      // Set up readline for single keypress
+      // Set up readline for input
       readline.emitKeypressEvents(process.stdin);
       if (process.stdin.isTTY) {
         process.stdin.setRawMode(true);
@@ -89,9 +89,11 @@ export async function listCommand(options) {
       
       // Return a promise for async handling
       return new Promise((resolve) => {
+        let inputBuffer = '';
+        
         const handleKeypress = (str, key) => {
           // Handle ESC or q to exit
-          if (key.name === 'escape' || str === 'q') {
+          if (key.name === 'escape' || (str === 'q' && inputBuffer === '')) {
             cleanup();
             console.log(chalk.gray('\nExited without selection'));
             resolve();
@@ -104,17 +106,40 @@ export async function listCommand(options) {
             process.exit(0);
           }
           
-          // Handle number selection
-          const num = parseInt(str);
-          if (!isNaN(num) && num >= 1 && num <= promptEntries.length) {
-            cleanup();
-            const selectedName = promptEntries[num - 1][0];
-            console.log(chalk.cyan(`\nExecuting: ${selectedName}\n`));
-            
-            // Execute the selected prompt
-            getCommand(selectedName, { ...options, stdout: false });
-            resolve();
+          // Handle Enter key
+          if (key.name === 'return') {
+            const num = parseInt(inputBuffer);
+            if (!isNaN(num) && num >= 1 && num <= promptEntries.length) {
+              cleanup();
+              const selectedName = promptEntries[num - 1][0];
+              console.log(chalk.cyan(`\nExecuting: ${selectedName}\n`));
+              
+              // Execute the selected prompt
+              getCommand(selectedName, { ...options, stdout: false });
+              resolve();
+              return;
+            } else if (inputBuffer.length > 0) {
+              // Invalid selection
+              process.stdout.write('\r' + ' '.repeat(50) + '\r');
+              process.stdout.write(chalk.red('Invalid selection. ') + chalk.green('Select [1-' + promptEntries.length + ']: '));
+              inputBuffer = '';
+            }
             return;
+          }
+          
+          // Handle backspace
+          if (key.name === 'backspace') {
+            if (inputBuffer.length > 0) {
+              inputBuffer = inputBuffer.slice(0, -1);
+              process.stdout.write('\r' + chalk.green('Select [1-' + promptEntries.length + '] and press Enter (or ESC/q to exit): ') + inputBuffer + ' \b');
+            }
+            return;
+          }
+          
+          // Handle number input
+          if (str && str >= '0' && str <= '9') {
+            inputBuffer += str;
+            process.stdout.write(str);
           }
         };
         

@@ -1,7 +1,9 @@
 import chalk from 'chalk';
+import readline from 'readline';
 import storage from '../storage/local.js';
+import { getCommand } from './enhanced-get.js';
 
-export function listCommand(options) {
+export async function listCommand(options) {
   try {
     let prompts = storage.getAllPrompts();
 
@@ -28,45 +30,109 @@ export function listCommand(options) {
       return;
     }
 
+    // Check if we should run in interactive mode
+    const isInteractive = process.stdout.isTTY && !options.json && promptEntries.length > 0;
+
     // Display prompts in a formatted list
     console.log(chalk.bold(`\nFound ${promptEntries.length} prompt${promptEntries.length === 1 ? '' : 's'}:\n`));
 
     // Sort by name
     promptEntries.sort((a, b) => a[0].localeCompare(b[0]));
 
-    for (const [name, prompt] of promptEntries) {
-      // Name and version
-      console.log(chalk.cyan('•'), chalk.white(name), chalk.gray(`v${prompt.version || 1}`));
+    // Display prompts with numbers if interactive
+    for (let i = 0; i < promptEntries.length; i++) {
+      const [name, prompt] = promptEntries[i];
+      
+      // Show number prefix in interactive mode
+      if (isInteractive) {
+        console.log(chalk.yellow(`[${i + 1}]`), chalk.cyan('•'), chalk.white(name), chalk.gray(`v${prompt.version || 1}`));
+      } else {
+        console.log(chalk.cyan('•'), chalk.white(name), chalk.gray(`v${prompt.version || 1}`));
+      }
       
       // Content preview (first line or 50 chars)
       if (prompt.content) {
         const preview = prompt.content.split('\n')[0].substring(0, 50);
         const ellipsis = prompt.content.length > 50 || prompt.content.includes('\n') ? '...' : '';
-        console.log(chalk.gray(`  ${preview}${ellipsis}`));
+        console.log(chalk.gray(`     ${preview}${ellipsis}`));
       }
 
       // Tags
       if (prompt.tags && prompt.tags.length > 0) {
-        console.log(chalk.gray('  Tags:'), chalk.blue(prompt.tags.join(', ')));
+        console.log(chalk.gray('     Tags:'), chalk.blue(prompt.tags.join(', ')));
       }
 
       // Variables
       if (prompt.variables && prompt.variables.length > 0) {
-        console.log(chalk.gray('  Variables:'), chalk.magenta(prompt.variables.join(', ')));
+        console.log(chalk.gray('     Variables:'), chalk.magenta(prompt.variables.join(', ')));
       }
 
       // Last modified
       if (prompt.modified) {
         const date = new Date(prompt.modified);
         const relative = getRelativeTime(date);
-        console.log(chalk.gray(`  Modified: ${relative}`));
+        console.log(chalk.gray(`     Modified: ${relative}`));
       }
 
       console.log(); // Empty line between prompts
     }
 
-    // Footer with usage hint
-    console.log(chalk.gray('Use `cuecli get <name>` to copy a prompt to clipboard'));
+    // Interactive selection mode
+    if (isInteractive) {
+      console.log(chalk.green('Select [1-' + promptEntries.length + '] or press ESC/q to exit'));
+      
+      // Set up readline for single keypress
+      readline.emitKeypressEvents(process.stdin);
+      if (process.stdin.isTTY) {
+        process.stdin.setRawMode(true);
+      }
+      
+      // Return a promise for async handling
+      return new Promise((resolve) => {
+        const handleKeypress = (str, key) => {
+          // Handle ESC or q to exit
+          if (key.name === 'escape' || str === 'q') {
+            cleanup();
+            console.log(chalk.gray('\nExited without selection'));
+            resolve();
+            return;
+          }
+          
+          // Handle Ctrl+C
+          if (key.ctrl && key.name === 'c') {
+            cleanup();
+            process.exit(0);
+          }
+          
+          // Handle number selection
+          const num = parseInt(str);
+          if (!isNaN(num) && num >= 1 && num <= promptEntries.length) {
+            cleanup();
+            const selectedName = promptEntries[num - 1][0];
+            console.log(chalk.cyan(`\nExecuting: ${selectedName}\n`));
+            
+            // Execute the selected prompt
+            getCommand(selectedName, { ...options, stdout: false });
+            resolve();
+            return;
+          }
+        };
+        
+        const cleanup = () => {
+          process.stdin.removeListener('keypress', handleKeypress);
+          if (process.stdin.isTTY) {
+            process.stdin.setRawMode(false);
+          }
+          process.stdin.pause();
+        };
+        
+        process.stdin.on('keypress', handleKeypress);
+        process.stdin.resume();
+      });
+    } else {
+      // Footer with usage hint for non-interactive mode
+      console.log(chalk.gray('Use `cuecli get <name>` to copy a prompt to clipboard'));
+    }
   } catch (error) {
     console.error(chalk.red('Error:'), error.message);
     process.exit(1);

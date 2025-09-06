@@ -31,7 +31,8 @@ export async function listCommand(options) {
     }
 
     // Check if we should run in interactive mode
-    const isInteractive = process.stdout.isTTY && !options.json && promptEntries.length > 0;
+    // Interactive by default unless JSON mode, explicitly disabled, or stdout is piped
+    const isInteractive = (options.interactive || process.stdout.isTTY) && !options.noInteractive && !options.json && promptEntries.length > 0;
 
     // Display prompts in a formatted list
     console.log(chalk.bold(`\nFound ${promptEntries.length} prompt${promptEntries.length === 1 ? '' : 's'}:\n`));
@@ -79,7 +80,8 @@ export async function listCommand(options) {
 
     // Interactive selection mode
     if (isInteractive) {
-      console.log(chalk.green('Select [1-' + promptEntries.length + '] and press Enter (or ESC/q to exit): '));
+      const selectionPrompt = `Select [1-${promptEntries.length}] and press Enter (or ESC/q to exit): `;
+      console.log(chalk.green(selectionPrompt));
       
       // Set up readline for input
       readline.emitKeypressEvents(process.stdin);
@@ -90,6 +92,7 @@ export async function listCommand(options) {
       // Return a promise for async handling
       return new Promise((resolve) => {
         let inputBuffer = '';
+        const prompt = selectionPrompt; // Make prompt accessible in closure
         
         const handleKeypress = (str, key) => {
           // Handle ESC or q to exit
@@ -131,7 +134,7 @@ export async function listCommand(options) {
           if (key.name === 'backspace') {
             if (inputBuffer.length > 0) {
               inputBuffer = inputBuffer.slice(0, -1);
-              process.stdout.write('\r' + chalk.green('Select [1-' + promptEntries.length + '] and press Enter (or ESC/q to exit): ') + inputBuffer + ' \b');
+              process.stdout.write('\r' + chalk.green(prompt) + inputBuffer + ' \b');
             }
             return;
           }

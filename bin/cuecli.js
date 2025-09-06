@@ -47,6 +47,8 @@ program
   .description('List all prompts')
   .option('--tags <tags...>', 'Filter by tags')
   .option('--json', 'Output as JSON')
+  .option('-i, --interactive', 'Force interactive selection mode')
+  .option('--no-interactive', 'Disable interactive selection mode')
   .action(listCommand);
 
 // Add command

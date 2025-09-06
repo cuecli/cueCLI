@@ -90,7 +90,7 @@ export async function listCommand(options) {
       }
       
       // Return a promise for async handling
-      return new Promise((resolve) => {
+      return new Promise(resolve => {
         let inputBuffer = '';
         const prompt = selectionPrompt; // Make prompt accessible in closure
         

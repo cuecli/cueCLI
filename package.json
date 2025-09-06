@@ -1,6 +1,6 @@
 {
   "name": "cuecli",
-  "version": "1.3.97",
+  "version": "1.3.98",
   "description": "Lightweight CLI for managing AI prompts. Store, organize, and instantly retrieve ChatGPT & Claude prompts. Features tags, variables, sanitization, and optional command execution.",
   "type": "module",
   "main": "src/index.js",

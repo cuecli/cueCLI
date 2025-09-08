@@ -6,6 +6,8 @@ import { substituteVariables, parseVariables } from '../utils/template.js';
 import sanitizer from '../utils/sanitizer.js';
 import logger from '../utils/logger.js';
 import executor from '../core/executor.js';
+import { copyToClipboardSilent } from '../utils/clipboard.js';
+import { showDirectiveSummary, showPreview } from '../utils/ux.js';
 
 /**
  * Enhanced get command with multiple output options and sanitization
@@ -57,64 +59,83 @@ export async function getCommand(name, options) {
       });
     }
 
+    // Detection & guardrails
+    const hasShebang = detectShebang(content);
+    const isExecutable = hasShebang || prompt?.executable === true;
+
     // Handle explicit execution flag (power users)
     if (options.execute) {
-      await executor.quickExecute(content, name);
+      if (!isExecutable) {
+        console.error('This prompt is non-executable content. Use --stdout or --file.');
+        process.exit(1);
+      }
+      // Only execute on explicit confirmation in TTY
+      if (process.stdout.isTTY) {
+        const runner = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
+        const confirmed = await confirmOneLine(`About to run this prompt via ${runner}. Run? [y/N]`);
+        if (confirmed) {
+          await executor.execute(content, name);
+        }
+      }
       return;
     }
 
-    // Handle different output methods
+    const isMachineOutput = options.pipe || !!options.output || (!process.stdout.isTTY && options.stdout === true);
+    const shouldPreviewByDefault = options.preview || !isMachineOutput;
+
+    if (shouldPreviewByDefault) {
+      const previewLines = (options.lines && Number(options.lines)) || 10;
+      showPreview(name, content, previewLines);
+    }
+
+    // Handle different output methods (no execution by default)
     if (options.output) {
       await handleOutput(content, options.output, name);
     } else if (options.stdout) {
       // Output to stdout
       console.log(content);
+      if (!isMachineOutput) {
+        await showDirectiveSummary({ name, content, tags: prompt?.tags || [], variables: prompt?.variables || [] });
+      }
     } else if (options.file) {
       // Save to file
       const filePath = path.resolve(options.file);
       await fs.writeFile(filePath, content);
-      console.log(chalk.green('✓'), `Saved to ${filePath}`);
+      console.log(`Saved to ${filePath}`);
+      if (!isMachineOutput) {
+        await showDirectiveSummary({ name, content, tags: prompt?.tags || [], variables: prompt?.variables || [] });
+      }
     } else if (options.append) {
       // Append to file
       const filePath = path.resolve(options.append);
       await fs.appendFile(filePath, '\n' + content);
-      console.log(chalk.green('✓'), `Appended to ${filePath}`);
+      console.log(`Appended to ${filePath}`);
+      if (!isMachineOutput) {
+        await showDirectiveSummary({ name, content, tags: prompt?.tags || [], variables: prompt?.variables || [] });
+      }
     } else if (options.pipe) {
       // Output for piping (no formatting)
       process.stdout.write(content);
-    } else if (options.preview) {
-      // Show preview with syntax highlighting (if available)
-      const lines = content.split('\n');
-      const previewLines = options.lines || 10;
-      
-      console.log(chalk.cyan(`Preview of '${name}':`));
-      console.log(chalk.gray('─'.repeat(50)));
-      
-      lines.slice(0, previewLines).forEach((line, i) => {
-        console.log(chalk.gray(`${String(i + 1).padStart(3)} │`), line);
-      });
-      
-      if (lines.length > previewLines) {
-        console.log(chalk.gray(`... (${lines.length - previewLines} more lines)`));
-      }
-      console.log(chalk.gray('─'.repeat(50)));
     } else {
-      // DEFAULT BEHAVIOR: Present for execution
-      // This is the new standard - every get is a potential execution
-      // ONLY when no specific output method is requested
-      await executor.present(name, content, {
-        action: 'retrieved',
-        source: 'library',
-        modified: false
-      });
+      // DEFAULT: Copy to clipboard; fallback to stdout
+      const copied = await copyToClipboardSilent(content);
+      if (copied) {
+        console.log(`Copied ${name} to clipboard.`);
+      } else {
+        console.log('Clipboard unavailable; printing to stdout. Copy manually.');
+        console.log(content);
+      }
+      if (!isMachineOutput) {
+        await showDirectiveSummary({ name, content, tags: prompt?.tags || [], variables: prompt?.variables || [] });
+      }
     }
 
     // Log usage for analytics (if enabled in future)
     // Note: Telemetry disabled by default for privacy
     logger.trace('Prompt retrieved', {
       name,
-      method: options.stdout ? 'stdout' : options.file ? 'file' : 'clipboard',
-      sanitized: options.sanitize || false,
+      method: options.stdout ? 'stdout' : options.file ? 'file' : options.append ? 'append' : options.pipe ? 'pipe' : options.output ? `format:${options.output}` : 'clipboard',
+      sanitized: !options.raw,
       elapsed: Date.now() - startTime,
     });
 
@@ -192,3 +213,27 @@ function escapeHtml(text) {
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
+// Helpers
+function detectShebang(content) {
+  const lines = content.split('\n');
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (line.length === 0) continue;
+    return line.startsWith('#!');
+  }
+  return false;
+}
+
+async function confirmOneLine(message) {
+  return await new Promise(resolve => {
+    process.stdout.write(`${message} `);
+    const onData = buf => {
+      const input = buf.toString().trim().toLowerCase();
+      process.stdin.pause();
+      process.stdin.off('data', onData);
+      resolve(input === 'y' || input === 'yes');
+    };
+    process.stdin.resume();
+    process.stdin.once('data', onData);
+  });
+}

@@ -6,7 +6,8 @@ import { spawn } from 'child_process';
 import storage from '../storage/local.js';
 import config from '../config/config.js';
 import logger from '../utils/logger.js';
-import executor from '../core/executor.js';
+import { copyToClipboardSilent } from '../utils/clipboard.js';
+import { showDirectiveSummary, showPreview } from '../utils/ux.js';
 
 /**
  * Edit an existing prompt using the configured editor
@@ -19,6 +20,35 @@ export async function editCommand(name, options) {
       console.error(chalk.red(`Error: Prompt '${name}' not found`));
       console.log(chalk.gray('Run `cuecli list` to see available prompts'));
       process.exit(1);
+    }
+
+    // If only description is being updated, skip opening the editor
+    if (options.desc && !options.editor) {
+      const newContent = prompt.content || '';
+      storage.setPrompt(name, {
+        ...prompt,
+        description: options.desc,
+        content: newContent,
+      });
+
+      // Preview-first (always show; non-TTY won't prompt later)
+      showPreview(name, newContent, 10);
+
+      // Copy-first directive summary for edited prompt
+      const copied = await copyToClipboardSilent(newContent);
+      if (copied) {
+        console.log(`Copied ${name} to clipboard.`);
+      } else {
+        console.log('Clipboard unavailable; printing to stdout. Copy manually.');
+        console.log(newContent);
+      }
+      await showDirectiveSummary({
+        name,
+        content: newContent,
+        tags: prompt.tags || [],
+        variables: prompt.variables || [],
+      });
+      return;
     }
 
     // Determine editor
@@ -64,18 +94,28 @@ export async function editCommand(name, options) {
       return;
     }
     
-    // Update prompt
+    // Update prompt (content + optional description)
     storage.setPrompt(name, {
       ...prompt,
       content: newContent,
+      description: options.desc ?? prompt.description,
     });
     
-    // Present the edited prompt for execution
-    // This is the new standard - after editing, you likely want to execute
-    await executor.present(name, newContent, {
-      action: 'edited',
-      source: 'editor',
-      modified: true
+    // Preview-first (always show; non-TTY won't prompt later)
+    showPreview(name, newContent, 10);
+    // Copy-first directive summary for edited prompt
+    const copied = await copyToClipboardSilent(newContent);
+    if (copied) {
+      console.log(`Copied ${name} to clipboard.`);
+    } else {
+      console.log('Clipboard unavailable; printing to stdout. Copy manually.');
+      console.log(newContent);
+    }
+    await showDirectiveSummary({
+      name,
+      content: newContent,
+      tags: prompt.tags || [],
+      variables: prompt.variables || [],
     });
     
   } catch (error) {

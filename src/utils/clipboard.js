@@ -20,3 +20,13 @@ export async function readFromClipboard() {
     throw new Error('Could not read from clipboard. Please ensure clipboard access is allowed.');
   }
 }
+
+// Silent variant used by get flow to avoid double/fuzzy messaging
+export async function copyToClipboardSilent(text) {
+  try {
+    await clipboardy.write(text);
+    return true;
+  } catch {
+    return false;
+  }
+}

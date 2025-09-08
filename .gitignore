@@ -8,6 +8,7 @@ build/
 coverage/
 .vscode/
 .idea/
+.npm-cache-tmp/
 
 # Internal documentation - not for public
 cuecli_todo.md

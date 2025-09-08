@@ -51,6 +51,12 @@ FEATURES.md
 CHANGELOG.md
 CONTRIBUTING.md
 
+# Exclude internal bot app and its node_modules
+discord-bot/
+
+# Local npm cache used in CI or dry runs
+.npm-cache-tmp/
+
 # IDE specific
 .claude/
 

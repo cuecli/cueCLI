@@ -57,6 +57,7 @@ program
   .description('Add a new prompt')
   .option('--from-file <path>', 'Add prompt from file')
   .option('--from-clipboard', 'Add prompt from clipboard')
+  .option('--desc <text>', 'Add a description')
   .option('--tags <tags...>', 'Add tags to prompt')
   .action(addCommand);
 
@@ -65,6 +66,7 @@ program
   .command('edit <name>')
   .description('Edit an existing prompt in your editor')
   .option('--editor <editor>', 'Specify editor to use')
+  .option('--desc <text>', 'Update description without opening editor')
   .option('-v, --verbose', 'Show detailed information')
   .action(editCommand);
 

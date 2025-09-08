@@ -2,9 +2,9 @@ import chalk from 'chalk';
 import fs from 'fs-extra';
 import readline from 'readline';
 import storage from '../storage/local.js';
-import { readFromClipboard } from '../utils/clipboard.js';
+import { readFromClipboard, copyToClipboardSilent } from '../utils/clipboard.js';
 import { extractVariables } from '../utils/template.js';
-import executor from '../core/executor.js';
+import { showDirectiveSummary, showPreview } from '../utils/ux.js';
 
 export async function addCommand(name, options) {
   try {
@@ -59,18 +59,29 @@ export async function addCommand(name, options) {
     const promptData = {
       content,
       tags: options.tags || [],
-      variables
+      variables,
+      description: options.desc || undefined
     };
 
     // Save the prompt
     storage.setPrompt(name, promptData);
-    
-    // Present the new prompt for execution
-    // After creating a prompt, you likely want to execute it
-    await executor.present(name, content, {
-      action: 'created',
-      source: options.fromFile ? 'file' : options.fromClipboard ? 'clipboard' : 'stdin',
-      modified: false
+
+    // Preview-first (always show; in non-TTY there is no keypress prompt later)
+    showPreview(name, content, 10);
+    // Copy-first UX for newly added prompts
+    const copied = await copyToClipboardSilent(content);
+    if (copied) {
+      console.log(`Copied ${name} to clipboard. Paste into your assistant.`);
+    } else {
+      console.log('Clipboard unavailable; printing to stdout. Copy manually.');
+      console.log(content);
+    }
+
+    await showDirectiveSummary({
+      name,
+      content,
+      tags: promptData.tags,
+      variables: promptData.variables,
     });
   } catch (error) {
     console.error(chalk.red('Error:'), error.message);

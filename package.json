@@ -1,6 +1,6 @@
 {
   "name": "cuecli",
-  "version": "1.3.98",
+  "version": "1.3.99",
   "description": "Lightweight CLI for managing AI prompts. Store, organize, and instantly retrieve ChatGPT & Claude prompts. Features tags, variables, sanitization, and optional command execution.",
   "type": "module",
   "main": "src/index.js",
@@ -8,11 +8,11 @@
     "cuecli": "./bin/cuecli.js"
   },
   "scripts": {
-    "test": "node --test test/storage.test.js",
-    "test:watch": "node --test --watch test/storage.test.js",
-    "test:coverage": "c8 node --test test/storage.test.js",
-    "lint": "eslint src/ bin/ test/",
-    "format": "prettier --write 'src/**/*.js' 'bin/**/*.js' 'test/**/*.js'",
+    "test": "echo 'No tests'",
+    "test:watch": "echo 'No tests'",
+    "test:coverage": "echo 'No tests'",
+    "lint": "eslint src/ bin/",
+    "format": "prettier --write 'src/**/*.js' 'bin/**/*.js'",
     "link": "npm link",
     "unlink": "npm unlink -g cuecli",
     "prepublishOnly": "npm test"

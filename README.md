@@ -14,7 +14,7 @@
 
 ## 📌 Overview
 
-cueCLI is a native command-line tool for managing, organizing, and reusing AI prompts across ChatGPT, Claude, and other assistants. Store frequently-used prompts locally, organize them with tags, and retrieve them instantly. No more copy-pasting from text files or losing prompts in chat history.
+cueCLI is a command-line tool for managing, organizing, and reusing AI prompts across ChatGPT, Claude, and other assistants. Store frequently-used prompts locally, organize them with tags, and retrieve them instantly. No more copy-pasting from text files or losing prompts in chat history.
 
 ## Why cueCLI?
 
@@ -60,7 +60,7 @@ npm link
 # Save a frequently-used prompt
 cuecli add context --from-file README.md --tags project docs
 
-# Get it back instantly (copies to clipboard)
+# Get it back instantly (preview → copy)
 cuecli get context
 
 # List all your saved prompts
@@ -76,44 +76,48 @@ cuecli get deploy-script --execute
 ## Core Commands
 
 ### `cuecli get <name>`
-Copy a prompt to your clipboard, ready to paste into your AI assistant.
+Preview-first, then copy-first. In TTY, cueCLI shows a numbered preview (default 10 lines), copies the prompt (or prints it with a clear fallback message), and displays a concise directive summary with a single prompt: “Press Enter to continue; press Esc to clear.” In non‑TTY or machine modes, preview/summary are suppressed for clean output.
 
 Options:
 - `--vars KEY=value...` - Substitute template variables
-- `--stdout` - Output to terminal instead of clipboard
-- `--pipe` - Clean output for piping
-- `--file <path>` - Save to file instead of clipboard
-- `--preview` - Preview prompt with line numbers
-- `--execute` - Execute prompt as a shell command
-- `--sanitize` - Remove sensitive data before copying
+- `--stdout` - Print to terminal (in non‑TTY suppresses preview/summary)
+- `--pipe` - Raw output for piping (no preview/summary)
+- `--file <path>` - Save exact content to file (prints “Saved to <abs_path>”)
+- `--append <path>` - Append exact content to file (prints “Appended to <abs_path>”)
+- `--preview` / `--lines <n>` - Show preview first; default 10 lines (TTY)
+- `--output <format>` - json | markdown | html | base64 | url (machine output)
+- `--execute` - Only executes truly executable content (shebang or metadata) with confirm: “About to run this prompt via <runner>. Run? [y/N]”. Non‑executable (Markdown/prose) is hard‑blocked.
+- `--raw` / `--scan-only` - Sanitization controls (see below)
 
 ### `cuecli add <name>`
-Save a new prompt to your library.
+Save a new prompt to your library. After saving, cueCLI shows preview → copy (or fallback print) → directive summary with a single Enter/Esc prompt in TTY.
 
 Options:
 - `--from-file <path>` - Import from file
 - `--from-clipboard` - Import from clipboard  
+- `--desc <text>` - Set a short description (shown in list)
 - `--tags <tags...>` - Add tags for organization
 
 ### `cuecli list`
-Display all saved prompts with metadata.
+Display all saved prompts with metadata. In TTY, list is numbered and interactive: type an index to retrieve and see the same preview → copy/summary flow. Non‑TTY shows a non‑interactive snapshot.
 
 Options:
 - `--tags <tags...>` - Filter by tags
 - `--json` - Output as JSON
 
 ### `cuecli edit <name>`
-Edit an existing prompt in your default editor.
+Edit an existing prompt in your default editor. After saving, cueCLI shows preview → copy (or fallback print) → directive summary with a single Enter/Esc prompt in TTY.
 
 Options:
 - `--editor <editor>` - Use specific editor
+- `--desc <text>` - Update description without opening editor
 
 ### `cuecli export`
-Export your prompt library for backup or sharing.
+Export your prompt library for backup or sharing. For safety, export asks for a one‑line confirmation before writing.
 
 Options:
 - `--output <file>` - Output file path
-- `--sanitize` - Remove sensitive data from export
+- `--raw` - Export without sanitization (includes sensitive data)
 - `--format <format>` - Output format (json, markdown)
 
 ## Template Variables
@@ -137,14 +141,16 @@ cuecli get api-template --vars PROJECT_NAME="MyAPI" ENV=staging API_URL="https:/
 Protect sensitive information with built-in sanitization:
 
 ```bash
+#!/usr/bin/env bash
 # Scan for sensitive data without modifying
 cuecli get my-prompt --scan-only
 
-# Auto-sanitize before copying
-cuecli get my-prompt --sanitize
+# Bypass sanitization (raw)
+cuecli get my-prompt --raw
 
-# Export sanitized prompts for sharing
-cuecli export --sanitize --output shared-prompts.json
+# Export with or without sanitization (confirm when prompted)
+cuecli export --output shared-prompts.json
+cuecli export --raw --output shared-prompts.json
 ```
 
 Automatically detects:
@@ -246,7 +252,7 @@ cuecli get debug --vars SERVICE=auth TIME="2025-01-04 14:00" LEVEL=verbose
 ### Share Sanitized Prompts with Team
 ```bash
 # Export without sensitive data
-cuecli export --sanitize --output team-prompts.json
+cuecli export --output team-prompts.json
 
 # Team member imports
 cuecli import team-prompts.json
@@ -262,11 +268,19 @@ npm install
 ```
 
 ### Testing
+Manual smoke checks (preview‑first, copy‑first, guardrails):
 ```bash
-npm test              # Run tests
-npm run test:watch    # Watch mode
-npm run test:coverage # Coverage report
-npm run lint          # Lint code
+# Seed a prompt
+cuecli add strict-implementation --from-file prompts/strict-implementation.md --desc "Strict-mode directive"
+
+# List (interactive in TTY)
+cuecli list
+
+# Retrieve (preview → copy/print → summary)
+cuecli get strict-implementation
+
+# Non-executable guard (exit 1)
+cuecli get --execute strict-implementation; echo $?
 ```
 
 ## Contributing

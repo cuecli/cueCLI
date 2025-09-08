@@ -34,8 +34,11 @@ export async function listCommand(options) {
     // Interactive by default unless JSON mode, explicitly disabled, or stdout is piped
     const isInteractive = (options.interactive || process.stdout.isTTY) && !options.noInteractive && !options.json && promptEntries.length > 0;
 
-    // Display prompts in a formatted list
-    console.log(chalk.bold(`\nFound ${promptEntries.length} prompt${promptEntries.length === 1 ? '' : 's'}:\n`));
+    // Display header and prompts in a formatted list
+    console.log();
+    console.log(chalk.cyan.bold('cueCLI Prompt List Below'));
+    console.log(chalk.gray('──────────────────────────────────────────────────'));
+    console.log();
 
     // Sort by name
     promptEntries.sort((a, b) => a[0].localeCompare(b[0]));
@@ -51,11 +54,23 @@ export async function listCommand(options) {
         console.log(chalk.cyan('•'), chalk.white(name), chalk.gray(`v${prompt.version || 1}`));
       }
       
-      // Content preview (first line or 50 chars)
-      if (prompt.content) {
-        const preview = prompt.content.split('\n')[0].substring(0, 50);
-        const ellipsis = prompt.content.length > 50 || prompt.content.includes('\n') ? '...' : '';
-        console.log(chalk.gray(`     ${preview}${ellipsis}`));
+      // Snippet block: up to 3 lines total for quick scanning
+      {
+        const termWidth = (process.stdout && process.stdout.columns) ? process.stdout.columns : 80;
+        const indent = '     ';
+        const maxWidth = Math.max(20, termWidth - indent.length - 2);
+
+        // 1) Optional single-line description (truncated to width)
+        let remaining = 3;
+        if (prompt.description && prompt.description.trim().length > 0) {
+          const descLine = truncateLine(prompt.description.trim(), maxWidth);
+          console.log(chalk.gray(indent + descLine));
+          remaining -= 1;
+        }
+
+        // 2) Content snippet: first non-empty lines, up to remaining lines
+        const snippetLines = getSnippetLines(prompt.content || '', remaining);
+        snippetLines.forEach(line => console.log(chalk.gray(indent + truncateLine(line, maxWidth))));
       }
 
       // Tags
@@ -115,7 +130,7 @@ export async function listCommand(options) {
             if (!isNaN(num) && num >= 1 && num <= promptEntries.length) {
               cleanup();
               const selectedName = promptEntries[num - 1][0];
-              console.log(chalk.cyan(`\nExecuting: ${selectedName}\n`));
+              console.log(chalk.cyan(`\nRetrieving: ${selectedName}\n`));
               
               // Execute the selected prompt
               getCommand(selectedName, { ...options, stdout: false });
@@ -184,4 +199,15 @@ function getRelativeTime(date) {
   } else {
     return 'just now';
   }
+}
+
+// Helpers for snippet rendering
+function truncateLine(text, width) {
+  if (!text) return '';
+  return text.length <= width ? text : text.slice(0, Math.max(0, width - 1)).trimEnd() + '…';
+}
+
+function getSnippetLines(content, maxLines) {
+  const lines = (content || '').split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  return lines.slice(0, maxLines);
 }
